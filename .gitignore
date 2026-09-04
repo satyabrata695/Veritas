@@ -1,0 +1,11 @@
+backend/venv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+
+dataset/
+models/ai_detector/*.pt
+models/ai_detector/*.safetensors
+models/ai_detector/checkpoint-*/
