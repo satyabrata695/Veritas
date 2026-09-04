@@ -9,3 +9,4 @@ dataset/
 models/ai_detector/*.pt
 models/ai_detector/*.safetensors
 models/ai_detector/checkpoint-*/
+.vercel
