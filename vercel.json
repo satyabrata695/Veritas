@@ -1,31 +1,21 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "frontend/index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/analyze.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "api/health.py",
-      "use": "@vercel/python"
-    }
-  ],
   "routes": [
     {
       "src": "/analyze",
-      "dest": "/api/analyze.py"
+      "dest": "/api/analyze"
     },
     {
       "src": "/health",
-      "dest": "/api/health.py"
+      "dest": "/api/health"
+    },
+    {
+      "src": "/history",
+      "dest": "/api/analyze"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/index.html"
+      "dest": "/index.html"
     }
   ]
 }

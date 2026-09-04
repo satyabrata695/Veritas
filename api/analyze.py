@@ -46,17 +46,20 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _ANALYSIS_HISTORY: list[dict] = []
 
 
-@app.get("/health")
+@app.get("/api/health")
+@app.get("/health")  # keep short path for local dev
 def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/history")
+@app.get("/api/history")
+@app.get("/history")  # keep short path for local dev
 def history() -> list[dict]:
     return _ANALYSIS_HISTORY[-20:]
 
 
-@app.post("/analyze")
+@app.post("/api/analyze")
+@app.post("/analyze")  # keep short path for local dev
 async def analyze(file: UploadFile = File(...)) -> dict:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(415, f"Unsupported content type: {file.content_type}")

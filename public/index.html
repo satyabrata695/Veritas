@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VERITAS Media Verification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #dff3ff;
+      --bg-accent: rgba(59, 130, 246, 0.12);
+      --panel: #111827;
+      --panel-raised: #1f293d;
+      --ink: #f8fafc;
+      --ink-dim: #94a3b8;
+      --hairline: #38bdf8;
+      --green: #4ade80;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --paper: #f8fafc;
+      --brand: #1d4ed8;
+      --sub-color: #334155;
+      --mono: 'IBM Plex Mono', monospace;
+      --serif: 'Newsreader', serif;
+    }
+
+    body[data-theme="dark"] {
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      --bg: #1e293b;
+      --bg-accent: rgba(59, 130, 246, 0.12);
+      --panel: #dff3ff;
+      --panel-raised: #cbe5f8;
+      --ink: #0f172a;
+      --ink-dim: #475569;
+      --hairline: #d97706;
+      --green: #15803d;
+      --amber: #d97706;
+      --red: #b91c1c;
+      --paper: #1e293b;
+      --brand: #60a5fa;
+      --sub-color: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: linear-gradient(180deg, #e8f4fd 0%, #cfe8fc 100%);
+      background-attachment: fixed;
+      color: var(--ink);
+      font-family: var(--mono);
+      min-height: 100vh;
+      padding: 32px 24px 80px;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    header {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding-bottom: 18px;
+      margin-bottom: 28px;
+      min-height: 140px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .brand .mark {
+      width: 34px;
+      height: 34px;
+      border: 2px solid var(--brand);
+      color: var(--brand);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: bold;
+      transform: rotate(-3deg);
+      transition: border-color 0.25s ease, color 0.25s ease;
+    }
+
+    .brand h1 {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: clamp(2.6rem, 5vw, 5rem);
+      margin: 0;
+      letter-spacing: 0.08em;
+      color: var(--brand);
+      line-height: 0.9;
+      transition: color 0.25s ease;
+    }
+
+    .brand .sub {
+      font-size: 13px;
+      color: var(--sub-color);
+      letter-spacing: 0.18em;
+      text-transform: lowercase;
+      margin-top: 2px;
+      font-weight: 600;
+      transition: color 0.25s ease;
+    }
+
+    .case-id {
+      display: none;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--panel);
+      color: var(--ink);
+      border: 1.5px dotted var(--hairline);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 11px;
+      font-family: var(--mono);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--brand);
+      transform: translateY(-50%) scale(1.03);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 26px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1.5px dotted var(--hairline);
+      border-radius: 4px;
+      padding: 22px;
+    }
+
+    .panel+.panel {
+      margin-top: 20px;
+    }
+
+    .panel h2 {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.6px;
+      color: var(--ink-dim);
+      margin: 0 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel h2::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--amber);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* --- Intake / upload --- */
+    #dropzone {
+      border: 1.5px dotted var(--hairline);
+      border-radius: 4px;
+      padding: 30px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+      background: repeating-linear-gradient(135deg, transparent, transparent 10px, rgba(255, 255, 255, 0.012) 10px, rgba(255, 255, 255, 0.012) 20px);
+    }
+
+    #dropzone:hover,
+    #dropzone.drag {
+      border-color: var(--amber);
+      background: rgba(217, 118, 43, 0.05);
+    }
+
+    #dropzone .icon {
+      font-size: 26px;
+      margin-bottom: 10px;
+      opacity: .8;
+    }
+
+    #dropzone p {
+      margin: 4px 0;
+      font-size: 12.5px;
+      color: var(--ink-dim);
+    }
+
+    #dropzone .hint {
+      font-size: 10.5px;
+      color: #6b6852;
+      margin-top: 8px;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    #preview {
+      margin-top: 16px;
+      display: none;
+    }
+
+    #preview img {
+      width: 100%;
+      border-radius: 3px;
+      border: 1px dotted var(--hairline);
+      display: block;
+    }
+
+    #preview .meta {
+      font-size: 10.5px;
+      color: var(--ink-dim);
+      margin-top: 8px;
+      word-break: break-all;
+    }
+
+    .server-row {
+      margin-top: 16px;
+      font-size: 11px;
+      color: var(--ink-dim);
+    }
+
+    .server-row input {
+      width: 100%;
+      margin-top: 6px;
+      background: var(--panel-raised);
+      border: 1px dotted var(--hairline);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 8px 10px;
+      border-radius: 2px;
+    }
+
+    button.run {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 2px;
+      border: 1px solid var(--amber);
+      background: transparent;
+      color: var(--amber);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    button.run:hover:not(:disabled) {
+      background: var(--amber);
+      color: #14140F;
+    }
+
+    button.run:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .scanline-wrap {
+      position: relative;
+      overflow: hidden;
+      border-radius: 3px;
+      display: none;
+      margin-top: 16px;
+      height: 4px;
+      background: var(--panel-raised);
+    }
+
+    .scanline-wrap.active {
+      display: block;
+    }
+
+    .scanline {
+      position: absolute;
+      top: 0;
+      left: -30%;
+      width: 30%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, var(--amber), transparent);
+      animation: scan 1.1s linear infinite;
+    }
+
+    @keyframes scan {
+      from {
+        left: -30%;
+      }
+
+      to {
+        left: 100%;
+      }
+    }
+
+    .history-item {
+      font-size: 11px;
+      padding: 8px 0;
+      border-bottom: 1px dotted var(--hairline);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--ink-dim);
+    }
+
+    .history-item span.v {
+      color: var(--ink);
+    }
+
+    /* --- Report side --- */
+    #reportEmpty {
+      background: var(--panel);
+      color: var(--ink-dim);
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 15px;
+      padding: 60px 24px;
+      text-align: center;
+      border: 1.5px dotted var(--hairline);
+      border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    #report {
+      display: none;
+    }
+
+    .stamp-zone {
+      position: relative;
+      padding: 26px 26px 20px;
+      border: 1.5px dotted var(--hairline);
+      border-radius: 4px;
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .stamp {
+      position: absolute;
+      top: 18px;
+      right: -6px;
+      transform: rotate(-9deg);
+      border: 3px solid;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      opacity: 0.9;
+      mix-blend-mode: normal;
+    }
+
+    .stamp.authentic {
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    .stamp.ai {
+      color: var(--amber);
+      border-color: var(--amber);
+    }
+
+    .stamp.manipulated {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .stamp.inconclusive {
+      color: var(--ink-dim);
+      border-color: var(--ink-dim);
+    }
+
+    .verdict-row {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-right: 150px;
+    }
+
+    .verdict-title {
+      font-family: var(--serif);
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .verdict-conf {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--ink-dim);
+    }
+
+    .summary-text {
+      font-family: var(--serif);
+      font-size: 15.5px;
+      line-height: 1.65;
+      color: var(--ink);
+      margin-top: 14px;
+      max-width: 620px;
+    }
+
+    .confidence-bar-track {
+      height: 8px;
+      background: var(--panel-raised);
+      border-radius: 4px;
+      margin-top: 18px;
+      overflow: hidden;
+      border: 1px dotted var(--hairline);
+    }
+
+    .confidence-bar-fill {
+      height: 100%;
+      transition: width .5s ease;
+    }
+
+    .score-legend {
+      display: flex;
+      gap: 22px;
+      margin-top: 10px;
+      font-size: 10.5px;
+      color: var(--ink-dim);
+      flex-wrap: wrap;
+    }
+
+    .score-legend b {
+      color: var(--ink);
+    }
+
+    .evidence-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .evidence-row {
+      background: var(--panel);
+      border: 1.5px dotted var(--hairline);
+      border-radius: 4px;
+      padding: 14px 16px;
+    }
+
+    .evidence-row .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .evidence-row .cat {
+      font-size: 12px;
+      letter-spacing: .4px;
+    }
+
+    .evidence-row .score {
+      font-size: 11px;
+      color: var(--ink-dim);
+    }
+
+    .evidence-row .bar {
+      height: 5px;
+      background: var(--panel-raised);
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .evidence-row .bar-fill {
+      height: 100%;
+    }
+
+    .evidence-row .detail {
+      font-size: 11px;
+      color: var(--ink-dim);
+      margin-top: 8px;
+    }
+
+    .evidence-row ul {
+      margin: 8px 0 0;
+      padding-left: 16px;
+      font-size: 11.5px;
+      color: var(--ink-dim);
+    }
+
+    .evidence-row li {
+      margin-bottom: 3px;
+    }
+
+    .limitation {
+      margin-top: 20px;
+      font-size: 11px;
+      color: var(--ink-dim);
+      border-left: 2px solid var(--amber);
+      padding: 10px 14px;
+      background: rgba(217, 118, 43, 0.04);
+    }
+
+    .error-box {
+      display: none;
+      margin-top: 16px;
+      border: 1px solid var(--red);
+      color: var(--red);
+      font-size: 11.5px;
+      padding: 12px 14px;
+      border-radius: 3px;
+      background: rgba(193, 68, 60, 0.06);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <header>
+      <button id="themeToggle" class="theme-toggle" type="button">Dark mode</button>
+      <div class="brand">
+        <div class="mark">✎</div>
+        <div>
+          <h1>VERITAS</h1>
+          <div class="sub">media verification</div>
+        </div>
+      </div>
+      <div class="case-id" style="display:none;">
+        Intake terminal — hackathon build<br>
+        Status: <b id="statusText">awaiting evidence</b>
+      </div>
+    </header>
+
+    <div class="grid">
+
+      <!-- LEFT: intake -->
+      <div>
+        <div class="panel">
+          <h2>Evidence Intake</h2>
+          <div id="dropzone">
+            <div class="icon">▣</div>
+            <p><strong>Drop an image</strong> or click to select</p>
+            <p class="hint">JPEG · PNG · WebP — max 15 MB</p>
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
+          </div>
+          <div id="preview">
+            <img id="previewImg" alt="preview" />
+            <div class="meta" id="previewMeta"></div>
+          </div>
+
+          <div class="scanline-wrap" id="scanline">
+            <div class="scanline"></div>
+          </div>
+
+          <button class="run" id="runBtn" disabled>Analyze Image</button>
+          <div class="error-box" id="errorBox"></div>
+
+          <div class="server-row">
+            Backend endpoint
+            <input id="apiUrl" value="/api/analyze" />
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Session History</h2>
+          <div id="historyList">
+            <div style="font-size:11px;color:var(--ink-dim);">No cases opened yet this session.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: report -->
+      <div>
+        <div id="reportEmpty">Upload an image to open a case file. The system will run metadata, provenance,
+          AI-generation, deepfake, and physical-consistency checks in parallel, then present a fused, evidence-based
+          verdict.</div>
+
+        <div id="report">
+          <div class="stamp-zone">
+            <div class="stamp" id="stampBadge">VERDICT</div>
+            <div class="verdict-row">
+              <h3 class="verdict-title" id="verdictTitle">—</h3>
+              <span class="verdict-conf" id="verdictConf"></span>
+            </div>
+            <p class="summary-text" id="summaryText"></p>
+            <div class="confidence-bar-track">
+              <div class="confidence-bar-fill" id="confidenceFill"></div>
+            </div>
+            <div class="score-legend" id="scoreLegend"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Evidence Breakdown</h2>
+            <div class="evidence-list" id="evidenceList"></div>
+            <div class="limitation" id="limitationText"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const previewWrap = document.getElementById('preview');
+    const previewImg = document.getElementById('previewImg');
+    const previewMeta = document.getElementById('previewMeta');
+    const runBtn = document.getElementById('runBtn');
+    const scanline = document.getElementById('scanline');
+    const errorBox = document.getElementById('errorBox');
+    const statusText = document.getElementById('statusText');
+    const historyList = document.getElementById('historyList');
+    const themeToggle = document.getElementById('themeToggle');
+
+    let currentFile = null;
+    let historyItems = [];
+
+    function setTheme(theme) {
+      document.body.dataset.theme = theme;
+      themeToggle.innerHTML = theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode';
+    }
+
+    const savedTheme = localStorage.getItem('veritas-theme') || 'light';
+    setTheme(savedTheme);
+
+    const apiUrlInput = document.getElementById('apiUrl');
+    // /api/analyze is the Vercel Python serverless function path.
+    // When running locally against uvicorn, manually change to http://localhost:8000/analyze
+    if (apiUrlInput && !apiUrlInput.value) {
+      apiUrlInput.value = '/api/analyze';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+      setTheme(nextTheme);
+      localStorage.setItem('veritas-theme', nextTheme);
+    });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    ['dragover', 'dragenter'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(evt => dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+    dropzone.addEventListener('drop', e => {
+      const f = e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      currentFile = file;
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      previewMeta.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB · ${file.type}`;
+      previewWrap.style.display = 'block';
+      runBtn.disabled = false;
+      errorBox.style.display = 'none';
+    }
+
+    runBtn.addEventListener('click', async () => {
+      if (!currentFile) return;
+      const apiUrl = document.getElementById('apiUrl').value.trim();
+      runBtn.disabled = true;
+      scanline.classList.add('active');
+      statusText.textContent = 'analyzing…';
+      errorBox.style.display = 'none';
+
+      const form = new FormData();
+      form.append('file', currentFile);
+
+      try {
+        const res = await fetch(apiUrl, { method: 'POST', body: form });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server returned ${res.status}: ${text}`);
+        }
+        const data = await res.json();
+        renderReport(data);
+        pushHistory(data);
+        statusText.textContent = 'case file open';
+      } catch (err) {
+        errorBox.textContent = `Could not reach the verification backend. ${err.message || err}. Make sure the FastAPI server is running and the endpoint above is correct.`;
+        errorBox.style.display = 'block';
+        statusText.textContent = 'error';
+      } finally {
+        scanline.classList.remove('active');
+        runBtn.disabled = false;
+      }
+    });
+
+    function verdictClass(verdict) {
+      if (verdict.includes('AUTHENTIC')) return 'authentic';
+      if (verdict.includes('AI-GENERATED')) return 'ai';
+      if (verdict.includes('MANIPULATED')) return 'manipulated';
+      return 'inconclusive';
+    }
+    function verdictColor(cls) {
+      return { authentic: 'var(--green)', ai: 'var(--amber)', manipulated: 'var(--red)', inconclusive: 'var(--ink-dim)' }[cls];
+    }
+
+    function renderReport(data) {
+      document.getElementById('reportEmpty').style.display = 'none';
+      const report = document.getElementById('report');
+      report.style.display = 'block';
+
+      const cls = verdictClass(data.verdict);
+      const color = verdictColor(cls);
+
+      const stamp = document.getElementById('stampBadge');
+      stamp.textContent = data.verdict;
+      stamp.className = 'stamp ' + cls;
+
+      document.getElementById('verdictTitle').textContent = data.verdict;
+      document.getElementById('verdictTitle').style.color = color;
+      document.getElementById('verdictConf').textContent = `${data.confidence_percent} confidence (${data.confidence_label.toLowerCase()})`;
+      document.getElementById('summaryText').textContent = data.summary;
+
+      const fill = document.getElementById('confidenceFill');
+      fill.style.width = data.confidence_percent;
+      fill.style.background = color;
+
+      const legend = document.getElementById('scoreLegend');
+      legend.innerHTML = Object.entries(data.component_scores).map(([k, v]) =>
+        `<div>${k}: <b>${Math.round(v * 100)}%</b></div>`
+      ).join('');
+
+      const list = document.getElementById('evidenceList');
+      list.innerHTML = data.evidence_breakdown.map(ev => {
+        const pct = Math.round((ev.score || 0) * 100);
+        const flagsHtml = (ev.flags && ev.flags.length)
+          ? `<ul>${ev.flags.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>`
+          : '';
+        return `
+      <div class="evidence-row">
+        <div class="top">
+          <span class="cat">${escapeHtml(ev.category)}</span>
+          <span class="score">${pct}%</span>
+        </div>
+        <div class="bar"><div class="bar-fill" style="width:${pct}%; background:${pct > 60 ? 'var(--red)' : pct > 30 ? 'var(--amber)' : 'var(--green)'}"></div></div>
+        <div class="detail">${escapeHtml(ev.detail || '')}</div>
+        ${flagsHtml}
+      </div>`;
+      }).join('');
+
+      document.getElementById('limitationText').textContent = data.limitation;
+    }
+
+    function pushHistory(data) {
+      historyItems.unshift(data);
+      historyList.innerHTML = historyItems.slice(0, 8).map(d =>
+        `<div class="history-item"><span>${escapeHtml(d.filename || 'image')}</span><span class="v">${escapeHtml(d.verdict)} · ${d.confidence_percent}</span></div>`
+      ).join('');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+  </script>
+</body>
+
+</html>
