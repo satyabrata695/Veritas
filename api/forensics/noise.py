@@ -1,28 +1,26 @@
 """
 Stage 7 (physical/compression consistency, part 2): Noise-residual analysis.
-
-Real camera sensors leave a fairly consistent noise "texture" across an
-entire photo (shot noise + sensor pattern noise). Two things break that
-consistency and are worth flagging:
-  1. Splicing a region from a different source image (its local noise
-     level won't match the surrounding area).
-  2. Many generative pipelines over-smooth texture, producing unnaturally
-     low and *uniform* noise almost everywhere.
-
-We estimate a per-block noise level using a high-pass (Laplacian) residual
-and look at both the overall level and the block-to-block variance.
+Rewritten to use only numpy + Pillow (no opencv) for Vercel compatibility.
 """
 from __future__ import annotations
 
 from typing import Any
 
-import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 def _laplacian_noise_map(gray: np.ndarray, block: int = 24) -> np.ndarray:
-    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    # Approximate Laplacian using numpy convolution
+    from numpy.lib.stride_tricks import as_strided
+    kernel = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=np.float64)
+    # Pad and convolve manually (simple, no scipy needed)
+    padded = np.pad(gray.astype(np.float64), 1, mode='reflect')
+    lap = (
+        padded[:-2, 1:-1] + padded[2:, 1:-1] +
+        padded[1:-1, :-2] + padded[1:-1, 2:] -
+        4 * padded[1:-1, 1:-1]
+    )
     h, w = lap.shape
     rows = h // block
     cols = w // block
@@ -35,7 +33,7 @@ def _laplacian_noise_map(gray: np.ndarray, block: int = 24) -> np.ndarray:
 
 
 def analyze_noise(image: Image.Image) -> dict[str, Any]:
-    gray = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    gray = np.asarray(image.convert("L"), dtype=np.float64)
     noise_map = _laplacian_noise_map(gray)
 
     mean_noise = float(noise_map.mean())
@@ -44,8 +42,6 @@ def analyze_noise(image: Image.Image) -> dict[str, Any]:
 
     flags: list[str] = []
 
-    # Heuristic thresholds tuned loosely; treat as a starting point to
-    # calibrate against the labeled evaluation dataset in section 12.
     over_smooth_signal = 0.0
     if mean_noise < 1.5:
         over_smooth_signal = 0.6

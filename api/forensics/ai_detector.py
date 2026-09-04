@@ -10,7 +10,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-import cv2
 import numpy as np
 from PIL import Image
 
@@ -66,10 +65,8 @@ def spectral_heuristic(image: Image.Image) -> dict[str, Any]:
 
     rgb = rgb[:side, :side]
 
-    gray = cv2.cvtColor(
-        rgb,
-        cv2.COLOR_RGB2GRAY,
-    ).astype(np.float32)
+    # Convert to grayscale using luminance weights (no cv2 needed)
+    gray = (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]).astype(np.float32)
 
     # --------------------------------------------------------
     # Spectral analysis
@@ -158,9 +155,13 @@ def spectral_heuristic(image: Image.Image) -> dict[str, Any]:
     # Texture/noise
     # --------------------------------------------------------
 
-    lap = cv2.Laplacian(
-        gray.astype(np.float32),
-        cv2.CV_32F,
+    # Laplacian via numpy (no cv2)
+    _g = gray.astype(np.float32)
+    _pad = np.pad(_g, 1, mode='reflect')
+    lap = (
+        _pad[:-2, 1:-1] + _pad[2:, 1:-1] +
+        _pad[1:-1, :-2] + _pad[1:-1, 2:] -
+        4 * _pad[1:-1, 1:-1]
     )
 
     block = 32
@@ -210,14 +211,15 @@ def spectral_heuristic(image: Image.Image) -> dict[str, Any]:
     # Edge structure
     # --------------------------------------------------------
 
-    edges = cv2.Canny(
-        gray.astype(np.uint8),
-        60,
-        150,
-    )
+    # Sobel-based edge detection (no cv2 Canny needed)
+    _gu = gray.astype(np.float32)
+    _p = np.pad(_gu, 1, mode='reflect')
+    Gx = -_p[:-2, :-2] + _p[:-2, 2:] - 2*_p[1:-1, :-2] + 2*_p[1:-1, 2:] - _p[2:, :-2] + _p[2:, 2:]
+    Gy = -_p[:-2, :-2] - 2*_p[:-2, 1:-1] - _p[:-2, 2:] + _p[2:, :-2] + 2*_p[2:, 1:-1] + _p[2:, 2:]
+    edges = np.sqrt(Gx**2 + Gy**2)
 
     edge_density = float(
-        edges.mean() / 255.0
+        (edges > 30).mean()
     )
 
     # --------------------------------------------------------
