@@ -1,113 +1,74 @@
-"""
-Stage 6: Deepfake / face-manipulation analysis.
-Rewritten to use only numpy + Pillow (no opencv) for Vercel compatibility.
-Face detection uses a simple skin-tone region approach as a lightweight proxy.
-"""
+"""Face analysis — pure Python + Pillow only (no numpy/opencv)."""
 from __future__ import annotations
-
+import math
 from typing import Any
-
-import numpy as np
 from PIL import Image
 
 
-def _sobel_edges(gray: np.ndarray) -> np.ndarray:
-    """Compute edge magnitude via Sobel using pure numpy."""
-    Kx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float32)
-    Ky = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=np.float32)
-    g = gray.astype(np.float32)
-    pad = np.pad(g, 1, mode='reflect')
-    Gx = (
-        -pad[:-2, :-2] + pad[:-2, 2:] +
-        -2 * pad[1:-1, :-2] + 2 * pad[1:-1, 2:] +
-        -pad[2:, :-2] + pad[2:, 2:]
-    )
-    Gy = (
-        -pad[:-2, :-2] - 2 * pad[:-2, 1:-1] - pad[:-2, 2:] +
-        pad[2:, :-2] + 2 * pad[2:, 1:-1] + pad[2:, 2:]
-    )
-    return np.sqrt(Gx ** 2 + Gy ** 2)
+def _sobel_edge_density(pixels: list[int], w: int, h: int) -> float:
+    edge_count = 0
+    total = 0
+    for r in range(1, h - 1):
+        for c in range(1, w - 1):
+            gx = (pixels[(r-1)*w+(c+1)] + 2*pixels[r*w+(c+1)] + pixels[(r+1)*w+(c+1)]
+                - pixels[(r-1)*w+(c-1)] - 2*pixels[r*w+(c-1)] - pixels[(r+1)*w+(c-1)])
+            gy = (pixels[(r+1)*w+(c-1)] + 2*pixels[(r+1)*w+c] + pixels[(r+1)*w+(c+1)]
+                - pixels[(r-1)*w+(c-1)] - 2*pixels[(r-1)*w+c] - pixels[(r-1)*w+(c+1)])
+            if math.sqrt(gx*gx + gy*gy) > 30:
+                edge_count += 1
+            total += 1
+    return edge_count / total if total else 0.0
 
 
-def _laplacian_var(gray: np.ndarray) -> float:
-    """Variance of Laplacian — sharpness measure."""
-    pad = np.pad(gray.astype(np.float64), 1, mode='reflect')
-    lap = (
-        pad[:-2, 1:-1] + pad[2:, 1:-1] +
-        pad[1:-1, :-2] + pad[1:-1, 2:] -
-        4 * pad[1:-1, 1:-1]
-    )
-    return float(lap.var())
+def _laplacian_var(pixels: list[int], w: int, h: int) -> float:
+    laps: list[float] = []
+    for r in range(1, h - 1):
+        for c in range(1, w - 1):
+            lap = float(
+                pixels[(r-1)*w+c] + pixels[(r+1)*w+c] +
+                pixels[r*w+(c-1)] + pixels[r*w+(c+1)] -
+                4 * pixels[r*w+c]
+            )
+            laps.append(lap)
+    if not laps:
+        return 0.0
+    mean = sum(laps) / len(laps)
+    return sum((x - mean) ** 2 for x in laps) / len(laps)
 
 
-def _detect_face_regions(rgb: np.ndarray) -> list[tuple[int, int, int, int]]:
-    """
-    Lightweight skin-tone proxy for face detection.
-    Returns list of (x, y, w, h) bounding boxes.
-    No opencv required.
-    """
-    r, g, b = rgb[:, :, 0].astype(float), rgb[:, :, 1].astype(float), rgb[:, :, 2].astype(float)
-    # Skin heuristic: warm, mid-range pixels
-    skin = (
-        (r > 60) & (g > 40) & (b > 20) &
-        (r > g) & (r > b) &
-        (r - g > 15) &
-        (np.abs(r.astype(int) - b.astype(int)) > 15)
-    )
-    if skin.sum() < 500:
-        return []
-
-    rows = np.where(skin.any(axis=1))[0]
-    cols = np.where(skin.any(axis=0))[0]
-    if len(rows) == 0 or len(cols) == 0:
-        return []
-
-    y0, y1 = int(rows[0]), int(rows[-1])
-    x0, x1 = int(cols[0]), int(cols[-1])
-    h, w = y1 - y0, x1 - x0
-
-    if h < 30 or w < 30:
-        return []
-
-    return [(x0, y0, w, h)]
-
-
-def _heuristic_manipulation_score(face_rgb: np.ndarray) -> tuple[float, list[str]]:
-    flags: list[str] = []
-    gray = np.mean(face_rgb, axis=2).astype(np.uint8)
-    h, w = gray.shape
-
-    edges = _sobel_edges(gray)
-    edge_density = float((edges > 30).mean())
-
-    flipped = gray[:, ::-1]
-    asymmetry = float(np.abs(gray.astype(float) - flipped).mean() / 255)
-
-    border = max(2, w // 20)
-    inner = gray[border:-border, border:-border] if h > 2 * border and w > 2 * border else gray
-    inner_sharp = _laplacian_var(inner.astype(np.float64))
-    outer_sharp = _laplacian_var(gray.astype(np.float64))
-    ring_ratio = inner_sharp / (outer_sharp + 1e-6)
-
-    score = 0.0
-    if edge_density < 0.03:
-        score += 0.25
-        flags.append("Face region shows unusually low edge texture (possible over-smoothing).")
-    if asymmetry < 0.03 or asymmetry > 0.18:
-        score += 0.25
-        flags.append("Face symmetry is outside the typical natural range.")
-    if ring_ratio < 0.6:
-        score += 0.3
-        flags.append("Sharpness drops noticeably at the face boundary, consistent with a blended/composited edit.")
-
-    return round(min(1.0, score), 3), flags
+def _detect_skin_region(image: Image.Image):
+    """Skin-tone detection, returns (x,y,w,h) or None."""
+    rgb = image.convert("RGB")
+    W, H = rgb.size
+    pixels = list(rgb.getdata())
+    min_c, max_c, min_r, max_r = W, 0, H, 0
+    found = False
+    for r in range(H):
+        for c in range(W):
+            ri, gi, bi = pixels[r * W + c]
+            if (ri > 60 and gi > 40 and bi > 20 and
+                    ri > gi and ri > bi and
+                    ri - gi > 15 and abs(int(ri) - int(bi)) > 15):
+                found = True
+                min_c = min(min_c, c)
+                max_c = max(max_c, c)
+                min_r = min(min_r, r)
+                max_r = max(max_r, r)
+    if not found:
+        return None
+    bw, bh = max_c - min_c, max_r - min_r
+    if bw < 30 or bh < 30:
+        return None
+    return (min_c, min_r, bw, bh)
 
 
 def analyze_faces(image: Image.Image) -> dict[str, Any]:
-    rgb = np.asarray(image.convert("RGB"))
-    faces = _detect_face_regions(rgb)
+    # Use a small resize to keep serverless execution fast
+    thumb = image.copy()
+    thumb.thumbnail((128, 128))
+    region = _detect_skin_region(thumb)
 
-    if len(faces) == 0:
+    if region is None:
         return {
             "faces_detected": 0,
             "max_manipulation_probability": 0.0,
@@ -115,22 +76,48 @@ def analyze_faces(image: Image.Image) -> dict[str, Any]:
             "flags": ["No faces detected - face-manipulation checks skipped."],
         }
 
-    face_reports = []
-    max_score = 0.0
-    for (x, y, w, h) in faces:
-        crop = rgb[y:y + h, x:x + w]
-        score, flags = _heuristic_manipulation_score(crop)
-        max_score = max(max_score, score)
-        face_reports.append({
-            "box": {"x": int(x), "y": int(y), "w": int(w), "h": int(h)},
-            "manipulation_probability": score,
-            "flags": flags,
-        })
+    x, y, bw, bh = region
+    crop = thumb.convert("L").crop((x, y, x + bw, y + bh))
+    cw, ch = crop.size
+    pixels = list(crop.getdata())
 
-    all_flags = [f for face in face_reports for f in face["flags"]]
+    score = 0.0
+    flags: list[str] = []
+
+    edge_density = _sobel_edge_density(pixels, cw, ch)
+    if edge_density < 0.03:
+        score += 0.25
+        flags.append("Face region shows unusually low edge texture (possible over-smoothing).")
+
+    # Asymmetry check
+    rows = [pixels[r * cw:(r + 1) * cw] for r in range(ch)]
+    diffs = [abs(rows[r][c] - rows[r][cw - 1 - c]) for r in range(ch) for c in range(cw // 2)]
+    asymmetry = (sum(diffs) / len(diffs) / 255) if diffs else 0.2
+    if asymmetry < 0.03 or asymmetry > 0.18:
+        score += 0.25
+        flags.append("Face symmetry is outside the typical natural range.")
+
+    # Sharpness ring check
+    border = max(2, cw // 20)
+    if ch > 2 * border and cw > 2 * border:
+        inner_pixels = []
+        for r in range(border, ch - border):
+            inner_pixels.extend(pixels[r * cw + border: r * cw + cw - border])
+        inner_var = _laplacian_var(pixels, cw, ch)
+        outer_var = _laplacian_var(pixels, cw, ch)
+        ring_ratio = inner_var / (outer_var + 1e-6)
+        if ring_ratio < 0.6:
+            score += 0.3
+            flags.append("Sharpness drops at the face boundary, consistent with a composited edit.")
+
+    face_report = {
+        "box": {"x": int(x), "y": int(y), "w": int(bw), "h": int(bh)},
+        "manipulation_probability": round(min(1.0, score), 3),
+        "flags": flags,
+    }
     return {
-        "faces_detected": len(faces),
-        "max_manipulation_probability": max_score,
-        "faces": face_reports,
-        "flags": all_flags,
+        "faces_detected": 1,
+        "max_manipulation_probability": round(min(1.0, score), 3),
+        "faces": [face_report],
+        "flags": flags,
     }
