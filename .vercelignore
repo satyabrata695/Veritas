@@ -1,0 +1,27 @@
+# Python virtual environment — never deploy
+backend/venv/
+backend/__pycache__/
+api/__pycache__/
+api/forensics/__pycache__/
+
+# Large model files — not needed for serverless (model falls back to heuristic)
+models/
+
+# Training dataset — never deploy
+dataset/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Local backend (we use api/ for Vercel)
+backend/
+
+# Git
+.git/
+
+# Misc
+*.egg-info/
+.DS_Store

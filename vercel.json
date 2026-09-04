@@ -2,19 +2,19 @@
   "version": 2,
   "routes": [
     {
-      "src": "/analyze",
+      "src": "/api/analyze",
       "dest": "/api/analyze"
     },
     {
-      "src": "/health",
+      "src": "/api/health",
       "dest": "/api/health"
     },
     {
-      "src": "/history",
+      "src": "/api/history",
       "dest": "/api/analyze"
     },
     {
-      "src": "/(.*)",
+      "src": "/((?!api/).*)",
       "dest": "/index.html"
     }
   ]
