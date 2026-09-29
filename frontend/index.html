@@ -593,7 +593,7 @@
 
           <div class="server-row">
             Backend endpoint
-            <input id="apiUrl" value="/api/analyze" />
+            <input id="apiUrl" value="/analyze" />
           </div>
         </div>
 
@@ -661,10 +661,11 @@
     setTheme(savedTheme);
 
     const apiUrlInput = document.getElementById('apiUrl');
-    // /api/analyze is the Vercel Python serverless function path.
+    // The local FastAPI backend route. The deployed Vercel page uses its
+    // separate public/index.html and /api/analyze route.
     // When running locally against uvicorn, manually change to http://localhost:8000/analyze
     if (apiUrlInput && !apiUrlInput.value) {
-      apiUrlInput.value = '/api/analyze';
+      apiUrlInput.value = '/analyze';
     }
 
     themeToggle.addEventListener('click', () => {
