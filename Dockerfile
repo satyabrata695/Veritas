@@ -2,8 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY backend/requirements-server.txt /app/requirements-server.txt
+# Render has no GPU. CPU-only PyTorch avoids downloading unused CUDA packages.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision \
+    && pip install --no-cache-dir -r /app/requirements-server.txt
 
 COPY backend /app/backend
 COPY models /app/models
