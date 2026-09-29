@@ -35,7 +35,10 @@ def _plain_language_summary(fused: dict[str, Any], evidence_flags: list[str]) ->
         top = evidence_flags[:3]
         summary += " Key evidence: " + "; ".join(top) + "."
     else:
-        summary += " No strong individual red flags were found by any single detector."
+        summary += (
+            " No strong individual signals were found. This is not evidence that "
+            "the image is authentic."
+        )
 
     return summary
 
@@ -98,6 +101,16 @@ def build_report(
         },
     ]
 
+    limitation = (
+        "This is an AI-assisted risk assessment, not proof of authenticity or fraud. "
+        "Detectors trained today can perform worse against future or unseen generators."
+    )
+    if not ai_detection.get("model_backed", False):
+        limitation += (
+            " The trained AI detector is not active for this analysis, so weak "
+            "heuristic evidence is reported as inconclusive."
+        )
+
     return {
         "file_hash_sha256": file_hash,
         "source_format": original_format,
@@ -108,10 +121,7 @@ def build_report(
         "component_scores": fused["component_scores"],
         "evidence_breakdown": evidence_breakdown,
         "summary": _plain_language_summary(fused, all_flags),
-        "limitation": (
-            "This is an AI-assisted risk assessment, not proof of authenticity or fraud. "
-            "Detectors trained today can perform worse against future or unseen generators."
-        ),
+        "limitation": limitation,
         "raw": {
             "metadata": metadata,
             "provenance": provenance,

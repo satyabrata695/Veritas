@@ -72,6 +72,12 @@ uvicorn main:app --reload --port 8000
 
 API documentation is available at <http://localhost:8000/docs>.
 
+After startup, open <http://localhost:8000/health>. A trained detector is
+active only when the response includes `"model_backed": true` and
+`"detector_method": "veritas_vit_ai_detector"`. If it reports a heuristic
+method instead, results should be treated as inconclusive unless there is
+strong supporting forensic evidence.
+
 ### Frontend
 
 Open `frontend/index.html` in a browser, or serve it with any static server.
@@ -84,6 +90,18 @@ can be changed in the dashboard if the API is deployed elsewhere.
 curl -X POST http://localhost:8000/analyze \
   -F "file=@/path/to/image.jpg;type=image/jpeg"
 ```
+
+### Deploying the trained detector
+
+The trained model is stored in `models/ai_detector/` and requires PyTorch and
+Transformers, which are included in `backend/requirements.txt`. Deploy the
+`backend/` directory and the `models/` directory to a Python hosting service
+that supports PyTorch and large model files, then set the frontend's backend
+endpoint to that service's `/analyze` URL.
+
+The repository's Vercel `api/` endpoint intentionally remains a
+heuristic-only fallback. It cannot provide trained-model results; it now
+reports this explicitly through its health endpoint.
 
 ## Roadmap
 

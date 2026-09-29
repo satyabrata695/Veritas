@@ -28,7 +28,7 @@ from PIL import Image, UnidentifiedImageError
 from forensics import ai_detector, ela, face_analysis, fusion, metadata, noise, provenance, report
 
 app = FastAPI(
-    title="AI Digital Media Verification System",
+    title="VERITAS Heuristic API",
     description="Evidence-based authenticity assessment for uploaded images.",
     version="0.1.0",
 )

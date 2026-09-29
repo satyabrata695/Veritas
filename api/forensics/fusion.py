@@ -29,8 +29,14 @@ def fuse_evidence(
     ela: dict[str, Any],
     noise: dict[str, Any],
 ) -> dict[str, Any]:
-    synthetic_prob = ai_detection.get("synthetic_probability", 0.0)
-    synthetic_prob = 0.7 * synthetic_prob + 0.3 * noise.get("synthetic_support_score", 0.0)
+    """Fuse evidence without treating an absence of red flags as authenticity.
+
+    ``LIKELY AUTHENTIC`` requires positive evidence: either a verified C2PA
+    manifest or a high-confidence real prediction from the trained classifier.
+    Heuristic-only results with weak evidence are intentionally inconclusive.
+    """
+    detector_synthetic_prob = float(ai_detection.get("synthetic_probability", 0.0))
+    synthetic_prob = 0.7 * detector_synthetic_prob + 0.3 * noise.get("synthetic_support_score", 0.0)
 
     manipulation_prob = max(
         face_analysis.get("max_manipulation_probability", 0.0),
@@ -40,53 +46,57 @@ def fuse_evidence(
 
     metadata_anomaly = metadata.get("anomaly_score", 0.0)
 
-    # Provenance can only push toward authenticity, and only when actually
-    # verified - an unverified/missing manifest must stay neutral.
-    provenance_bonus = 0.0
-    if provenance.get("verified"):
-        provenance_bonus = 0.3
-
     # Blend in a light metadata contribution without letting it dominate,
     # since metadata is the easiest signal to strip or forge.
     synthetic_prob = min(1.0, synthetic_prob + 0.15 * metadata_anomaly)
     manipulation_prob = min(1.0, manipulation_prob + 0.1 * metadata_anomaly)
 
-    authenticity_prob = max(0.0, 1.0 - max(synthetic_prob, manipulation_prob) + provenance_bonus)
-    authenticity_prob = min(1.0, authenticity_prob)
+    model_backed = bool(ai_detection.get("model_backed", False))
+    real_model_probability = 1.0 - detector_synthetic_prob
+    verified_provenance = bool(provenance.get("verified", False))
+
+    # Missing or neutral evidence is not positive proof that an image is real.
+    # Only verified provenance or a confident trained-model real prediction can
+    # support the authentic class.
+    authenticity_prob = 0.0
+    if verified_provenance:
+        authenticity_prob = max(authenticity_prob, 0.85)
+    if model_backed and real_model_probability >= 0.8:
+        authenticity_prob = max(authenticity_prob, real_model_probability)
 
     scores = {
         "synthetic": synthetic_prob,
         "manipulated": manipulation_prob,
         "authentic": authenticity_prob,
     }
-    leading_label, leading_score = max(scores.items(), key=lambda kv: kv[1])
-    sorted_scores = sorted(scores.values(), reverse=True)
-    margin = sorted_scores[0] - sorted_scores[1] if len(sorted_scores) > 1 else 1.0
+    strong_synthetic = synthetic_prob >= 0.6
+    strong_manipulation = manipulation_prob >= 0.6
+    strong_authenticity = authenticity_prob >= 0.8
+    contradiction = sum((strong_synthetic, strong_manipulation, strong_authenticity)) > 1
 
-    # Contradiction check: strong signals pointing in different directions
-    # should reduce certainty rather than being averaged away silently.
-    contradiction = synthetic_prob > 0.5 and manipulation_prob > 0.5 and authenticity_prob > 0.4
-    weak_evidence = leading_score < 0.45
-
-    if contradiction or (weak_evidence and margin < 0.1):
+    if contradiction:
         verdict = VERDICT_INCONCLUSIVE
-        confidence = round(0.5 - margin / 2, 3)
-        confidence_label = "Low"
+        confidence = 0.3
+    elif strong_synthetic:
+        verdict = VERDICT_AI_GENERATED
+        confidence = synthetic_prob
+    elif strong_manipulation:
+        verdict = VERDICT_MANIPULATED
+        confidence = manipulation_prob
+    elif strong_authenticity:
+        verdict = VERDICT_AUTHENTIC
+        confidence = authenticity_prob
     else:
-        verdict = {
-            "synthetic": VERDICT_AI_GENERATED,
-            "manipulated": VERDICT_MANIPULATED,
-            "authentic": VERDICT_AUTHENTIC,
-        }[leading_label]
-        confidence = round(min(0.97, leading_score * (0.6 + margin)), 3)
-        if confidence >= 0.75:
-            confidence_label = "High"
-        elif confidence >= 0.5:
-            confidence_label = "Medium"
-        else:
-            confidence_label = "Low"
-            if verdict != VERDICT_INCONCLUSIVE and confidence < 0.4:
-                verdict = VERDICT_INCONCLUSIVE
+        verdict = VERDICT_INCONCLUSIVE
+        confidence = max(synthetic_prob, manipulation_prob, authenticity_prob)
+
+    confidence = round(min(0.97, confidence), 3)
+    if confidence >= 0.75:
+        confidence_label = "High"
+    elif confidence >= 0.5:
+        confidence_label = "Medium"
+    else:
+        confidence_label = "Low"
 
     return {
         "verdict": verdict,
@@ -95,4 +105,8 @@ def fuse_evidence(
         "confidence_percent": f"{round(confidence * 100)}%",
         "component_scores": {k: round(v, 3) for k, v in scores.items()},
         "contradiction_detected": contradiction,
+        "authenticity_evidence": {
+            "trained_model_used": model_backed,
+            "verified_provenance": verified_provenance,
+        },
     }

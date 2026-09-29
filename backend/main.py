@@ -27,9 +27,9 @@ from PIL import Image, UnidentifiedImageError
 from forensics import ai_detector, ela, face_analysis, fusion, metadata, noise, provenance, report
 
 app = FastAPI(
-    title="AI Digital Media Verification System",
+    title="VERITAS",
     description="Evidence-based authenticity assessment for uploaded images.",
-    version="0.1.0-hackathon-mvp",
+    version="0.2.0",
 )
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -52,7 +52,21 @@ _ANALYSIS_HISTORY: list[dict] = []
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    model_backed = ai_detector.TRAINED_CLASSIFIER is not None
+    return {
+        "status": "ok",
+        "model_backed": model_backed,
+        "detector_method": (
+            "veritas_vit_ai_detector"
+            if model_backed
+            else "multi_cue_spectral_heuristic_v1"
+        ),
+        "warning": (
+            None
+            if model_backed
+            else "The trained AI detector is unavailable; results use a heuristic fallback."
+        ),
+    }
 
 
 @app.get("/history")
